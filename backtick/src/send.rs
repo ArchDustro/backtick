@@ -2,7 +2,6 @@ use zbus::Connection;
 use std::collections::HashMap;
 use crate::file::FileLogger;
 use crate::thread::ThreadHandle;
-use futures::executor::block_on;
 
 pub enum Urgency {
     LOW,
@@ -62,7 +61,8 @@ pub fn send_to_file(
             format!("{} LOG: {}", name, contents)
         };
 
-        block_on(async {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
             logger.write(&msg).await.unwrap();
         });
     });
@@ -77,7 +77,8 @@ pub fn send_via_dbus(
     urgency: Urgency,
 ) {
     thread.run_on_thread(move || {
-        block_on(async move {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move {
             let connection = Connection::session().await.unwrap();
 
             let mut hints = HashMap::new();
@@ -108,3 +109,4 @@ pub fn send_via_dbus(
         });
     });
 }
+
