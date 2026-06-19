@@ -1,14 +1,16 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+pub mod send;
+pub mod thread;
+pub mod file;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub fn unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// I literally just want to pump this out so I can get continue working on other things.
+// So there might not be many comments, but worry not - this will get updated as it needs to be.
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+// However, I am still commited to making sure it is of quality.
