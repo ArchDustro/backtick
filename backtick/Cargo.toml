@@ -2,5 +2,9 @@
 name = "backtick"
 version = "0.1.0"
 edition = "2024"
+author = "R. \"Dot Underscore\" L"
+license = "MIT"
+description = "An efficient multi-threaded logging library made in Rust."
+repository = "https://github.com/ArchDustro/backtick"
 
 [dependencies]
