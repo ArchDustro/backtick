@@ -7,21 +7,22 @@ pub struct FileLogger {
 }
 
 impl FileLogger {
-    pub async fn open(path: PathBuf) -> Result<Self> {
-        let file = OpenOptions::new()
+    pub fn open(path: PathBuf) -> std::io::Result<Self> {
+        let file = std::fs::OpenOptions::new()
             .create(true)
-            .append(true) // change to .truncate(true) for overwrite mode
-            .open(path)
-            .await?;
+            .append(true)
+            .open(path)?;
 
         Ok(Self {
-            writer: BufWriter::new(file),
+            writer: BufWriter::new(tokio::fs::File::from_std(file)),
         })
     }
+
 
     pub async fn write(&mut self, contents: &str) -> Result<()> {
         self.writer.write_all(contents.as_bytes()).await?;
         self.writer.write_all(b"\n").await?;
+        self.writer.flush().await?;
         Ok(())
     }
 

@@ -2,6 +2,9 @@ use zbus::Connection;
 use std::collections::HashMap;
 use crate::file::FileLogger;
 use crate::thread::ThreadHandle;
+use zbus::zvariant::Value;
+use once_cell::sync::Lazy;
+use crate::thread::THREAD;
 
 pub enum Urgency {
     LOW,
@@ -11,13 +14,8 @@ pub enum Urgency {
 
 // stdout
 
-pub fn send_to_stdout(
-    thread: &ThreadHandle,
-    name: String,
-    contents: String,
-    has_time: bool,
-) {
-    thread.run_on_thread(move || {
+pub fn send_to_stdout(name: String, contents: String, has_time: bool) {
+    THREAD.run_on_thread(move || async move {
         let msg = if has_time {
             format!("{} | {} LOG: {}", crate::unix_timestamp(), name, contents)
         } else {
@@ -27,15 +25,14 @@ pub fn send_to_stdout(
     });
 }
 
-// stderr
 
+// stderr
 pub fn send_to_stderr(
-    thread: &ThreadHandle,
     name: String,
     contents: String,
     has_time: bool,
 ) {
-    thread.run_on_thread(move || {
+    THREAD.run_on_thread(move || async move {
         let msg = if has_time {
             format!("{} | {} LOG: {}", crate::unix_timestamp(), name, contents)
         } else {
@@ -45,68 +42,65 @@ pub fn send_to_stderr(
     });
 }
 
+
 // file
 
 pub fn send_to_file(
-    thread: &ThreadHandle,
     mut logger: FileLogger,
     name: String,
     contents: String,
     has_time: bool,
 ) {
-    thread.run_on_thread(move || {
+    THREAD.run_on_thread(move || async move {
         let msg = if has_time {
             format!("{} | {} LOG: {}", crate::unix_timestamp(), name, contents)
         } else {
             format!("{} LOG: {}", name, contents)
         };
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            logger.write(&msg).await.unwrap();
-        });
+        logger.write(&msg).await.unwrap();
     });
 }
 
 // dbus
-
 pub fn send_via_dbus(
-    thread: &ThreadHandle,
     name: String,
     contents: String,
     urgency: Urgency,
 ) {
-    thread.run_on_thread(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async move {
-            let connection = Connection::session().await.unwrap();
+    THREAD.run_on_thread(move || async move {
+        eprintln!("[dbus] about to send notification");
 
-            let mut hints = HashMap::new();
-            match urgency {
-                Urgency::CRITICAL => { hints.insert("urgency".to_string(), 2u8); }
-                Urgency::NEUTRAL  => { hints.insert("urgency".to_string(), 1u8); }
-                Urgency::LOW      => { hints.insert("urgency".to_string(), 0u8); }
-            }
+        let connection = Connection::session()
+            .await
+            .expect("[dbus] failed to connect to session bus");
 
-            let _ = connection
-                .call_method(
-                    Some("org.freedesktop.Notifications"),
-                    "/org/freedesktop/Notifications",
-                    Some("org.freedesktop.Notifications"),
-                    "Notify",
-                    &(
-                        "backtick-logging",
-                        0u32,
-                        "",
-                        name,
-                        contents,
-                        Vec::<String>::new(),
-                        hints,
-                        -1i32,
-                    ),
-                )
-                .await;
-        });
+        let mut hints: HashMap<&str, Value> = HashMap::new();
+        match urgency {
+            Urgency::CRITICAL => hints.insert("urgency", Value::U8(2)),
+            Urgency::NEUTRAL  => hints.insert("urgency", Value::U8(1)),
+            Urgency::LOW      => hints.insert("urgency", Value::U8(0)),
+        };
+
+        let res = connection
+            .call_method(
+                Some("org.freedesktop.Notifications"),
+                "/org/freedesktop/Notifications",
+                Some("org.freedesktop.Notifications"),
+                "Notify",
+                &(
+                    "backtick-logging",
+                    0u32,
+                    "dialog-information",
+                    name,
+                    contents,
+                    Vec::<&str>::new(),
+                    hints,
+                    -1i32,
+                ),
+            )
+            .await;
+
+        eprintln!("[dbus] call_method result: {:?}", res);
     });
 }
-

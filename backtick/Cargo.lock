@@ -150,6 +150,7 @@ name = "backtick"
 version = "0.1.2"
 dependencies = [
  "futures",
+ "once_cell",
  "tokio",
  "zbus",
 ]
